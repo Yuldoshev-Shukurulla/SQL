@@ -34,3 +34,24 @@ DROP CONSTRAINT UQ_product_id;
 ALTER TABLE product
 ADD CONSTRAINT UQ_product_id_name UNIQUE (product_id, product_name);
 
+/* . PRIMARY KEY Constraint
+Create a table named orders with:
+order_id (integer, should be the primary key)
+customer_name (string, no constraint)
+order_date (date, no constraint)
+First, define the primary key inside the CREATE TABLE statement.
+Then, drop the primary key and add it again using ALTER TABLE.*/
+
+CREATE TABLE orders (
+	order_id int CONSTRAINT PK_order_id PRIMARY KEY,
+	customer_name varchar(100),
+	order_date date);
+
+ALTER TABLE orders
+DROP CONSTRAINT PK_order_id;
+
+ALTER TABLE orders
+ADD CONSTRAINT PK_order_id PRIMARY KEY (order_id);
+
+
+
