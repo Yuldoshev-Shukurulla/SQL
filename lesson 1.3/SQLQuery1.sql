@@ -101,6 +101,22 @@ Use CHECK constraints to enforce these rules.
 First, define the constraints inside CREATE TABLE.
 Then, drop and re-add the CHECK constraints using ALTER TABLE.*/
 
+create table account
+(
+account_id int primary key,
+balance decimal(10, 2) constraint CHK_balance check(balance >= 0),
+account_type varchar(50),
+constraint CHK_account check (account_type in('Saving', 'Checking'))
+);
+
+alter table account
+drop constraint CHK_balance;
+alter table account
+drop constraint CHK_account;
+alter table account
+add constraint CHK_balance check(balance >= 0);
+alter table account
+add constraint CHK_account check (account_type in('Saving', 'Checking'));
 
 
 
