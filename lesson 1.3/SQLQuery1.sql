@@ -154,5 +154,27 @@ The Loan table connects Book and Member (Many-to-Many).
 Create the tables with proper constraints (Primary Key, Foreign Key).
 Insert at least 2-3 sample records into each table.*/
 
+create table Book
+(
+	book_id int primary key,
+	title varchar(50),
+	author varchar(100),
+	published_year int
+);
 
+create table Member
+(
+	member_id int primary key,
+	name varchar(100),
+	email varchar(150),
+	phone_number varchar(20)
+);
+create table Loan
+(
+	loan_id int primary key,
+	book_id int foreign key references Book(book_id),
+	member_id int foreign key references Member(member_id),
+	loan_date date,
+	return_date date
+)
 
