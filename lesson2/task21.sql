@@ -86,7 +86,22 @@ SELECT id, DATALENGTH(image) AS ImageSizeBytes FROM imagea;
 --Insert 3 sample rows.
 --Retrieve all data and check if the computed column works correctly.
 
+DROP TABLE IF EXISTS student;
+CREATE TABLE student
+(
+	student_id INT IDENTITY(1, 1) PRIMARY KEY,
+	student_name VARCHAR(50),
+	classes int,
+	tuition_per_class decimal(10, 2),
+	total_tuition AS (classes * tuition_per_class)
+);
 
+INSERT INTO student (student_name, classes,  tuition_per_class)
+VALUES ('Jack', 12, 25),
+		('Reacher', 8, 25),
+		('John', 10, 25);
+
+SELECT	*	FROM student;
 
 -- ============================================================================
 -- 5. CSV to SQL Server (BULK INSERT)
@@ -95,3 +110,20 @@ SELECT id, DATALENGTH(image) AS ImageSizeBytes FROM imagea;
 --Download or create a CSV file with at least 5 rows of worker data (id, name).
 --Use BULK INSERT to import the CSV file into the worker table.
 --Verify the imported data.
+
+drop table if exists sts
+CREATE TABLE sts
+(
+	id INT,
+	name VARCHAR(50)
+);
+
+BULK INSERT sts
+FROM 'C:\sts.csv'
+WITH(
+	FIELDTERMINATOR = ',',
+	ROWTERMINATOR = '\n',
+	FIRSTROW = 2
+);
+
+SELECT * FROM sts;
