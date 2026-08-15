@@ -78,6 +78,28 @@ VALUES
 --Skips the first 2 records and fetches the next 5.
 SELECT * FROM Employees
 
+WITH Temp AS (
+    SELECT TOP (10) PERCENT
+        EmployeeID,
+        FirstName,
+        LastName,
+        Department,
+        Salary,
+        HireDate,
+        CASE
+            WHEN Salary  > 80000 THEN 'High'
+            WHEN Salary > 50000 THEN 'Medium'
+            ELSE 'Low'
+            END AS SalaryCategory
+    FROM Employees
+    ORDER BY Salary)
+SELECT Department, AVG(Salary) AS AverageSalary
+From Temp
+GROUP BY Department
+ORDER BY AVG(Salary) DESC
+OFFSET 2 ROWS FETCH NEXT 5 ROWS ONLY;
+
+
 
 -- ============================================================================
 -- Task 2: Customer Order Insights
@@ -93,6 +115,26 @@ SELECT * FROM Employees
 --Filters only statuses where revenue is greater than 5000.
 --Orders by TotalRevenue descending.
 
+SELECT * FROM Orders
+
+
+SELECT
+    COUNT(*) AS TotalOrders,
+    SUM(TotalAmount) AS TotalRevenue,
+    CASE
+        WHEN Status = 'Delivered' OR Status = 'Shipped' THEN 'Completed'
+        WHEN Status =  'Pending' THEN 'Pending'
+        ELSE 'Cancelled'
+        END AS OrderStatus
+FROM Orders
+WHERE OrderDate BETWEEN '2026-08-03' AND '2026-08-08'
+GROUP BY CASE
+        WHEN Status = 'Delivered' OR Status = 'Shipped' THEN 'Completed'
+        WHEN Status =  'Pending' THEN 'Pending'
+        ELSE 'Cancelled'
+        END
+HAVING SUM(TotalAmount) > 50
+ORDER BY TotalRevenue;
 
 
 -- ============================================================================
@@ -107,3 +149,16 @@ SELECT * FROM Employees
 --'Low Stock' if Stock is between 1 and 10.
 --'In Stock' otherwise.
 --Orders the result by Price descending and skips the first 5 rows.
+
+SELECT * FROM Products
+
+SELECT TOP 1 WITH TIES
+    ProductID,
+    ProductName,
+    Category,
+    Price,
+    Stock,
+    IIF(Stock = 0, 'Out of Stock', 
+                 IIF(Stock BETWEEN 1 AND 10, 'Low Stock','In Stock')) AS InventoryStatus
+FROM Products
+ORDER BY ROW_NUMBER() OVER (PARTITION BY Category ORDER BY Price DESC);
