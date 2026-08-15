@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS Employees;
 CREATE TABLE Employees (
     EmployeeID INT PRIMARY KEY,
     FirstName VARCHAR(50),
@@ -6,7 +7,7 @@ CREATE TABLE Employees (
     Salary DECIMAL(10,2),
     HireDate DATE
 );
-
+DROP TABLE IF EXISTS Orders;
 CREATE TABLE Orders (
     OrderID INT PRIMARY KEY,
     CustomerName VARCHAR(100),
@@ -14,7 +15,7 @@ CREATE TABLE Orders (
     TotalAmount DECIMAL(10,2),
     Status VARCHAR(20) CHECK (Status IN ('Pending', 'Shipped', 'Delivered', 'Cancelled'))
 );
-
+DROP TABLE IF EXISTS Products;
 CREATE TABLE Products (
     ProductID INT PRIMARY KEY,
     ProductName VARCHAR(100),
@@ -75,7 +76,7 @@ VALUES
 --'Low' otherwise.
 --Orders the result by AverageSalary descending.
 --Skips the first 2 records and fetches the next 5.
-
+SELECT * FROM Employees
 
 
 -- ============================================================================
