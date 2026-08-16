@@ -8,7 +8,8 @@
 --    - Salary        DECIMAL(10,2)
 --    - HireDate      DATE
 -----
-a
+
+
 --Tasks
 --Ranking Functions
 --1. Assign a Unique Rank to Each Employee Based on Salary
