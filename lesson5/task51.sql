@@ -141,5 +141,5 @@ ORDER BY HireDate;
 --13. Determine the Percentage Contribution of Each Employee’s Salary to Their Department’s Total Salary
 SELECT
     *,
-    CAST(Salary * 100.0 / SUM(Salary) OVER(PARTITION BY Department) AS DECIMAL(10,2)) AS SalaryPercent
+    CAST(Salary * 100.0 /SUM(Salary) OVER(PARTITION BY Department) AS DECIMAL(10, 2)) AS SalaryPercent
 FROM Employees
