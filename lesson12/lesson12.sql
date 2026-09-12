@@ -3,6 +3,71 @@
 -- Write an SQL query to retrieve the database name, schema name, table name, column name, and column data type for all tables across all databases in a SQL Server instance.
 -- Ensure that system databases (master, tempdb, model, msdb) are excluded from the results.
 
+
+select 
+	TABLE_CATALOG as DatabaseName,
+	TABLE_SCHEMA as SchemaName,
+	TABLE_NAME as TableName,
+	COLUMN_NAME as ColumnName,
+	concat(
+		DATA_TYPE,'('+ 
+			case when cast(CHARACTER_MAXIMUM_LENGTH as varchar) = '-1'
+			then 'max'
+			else cast(CHARACTER_MAXIMUM_LENGTH as varchar) end
+		+')'
+	) as DataType
+from class11.INFORMATION_SCHEMA.COLUMNS;
+
+
+declare @name varchar(255);
+declare @i int = 1;
+declare @count int;
+select @count = count(1)
+from sys.databases where name not in ('master', 'tempdb', 'model', 'msdb')
+-- CREATE TABLE #temp (
+--     DatabaseName VARCHAR(255),
+--     SchemaName VARCHAR(255),
+--     TableName VARCHAR(255),
+--     ColumnName VARCHAR(255),
+--     DataType VARCHAR(255)
+-- );
+
+
+while @i < @count
+begin
+	with cte as (
+		select name, ROW_NUMBER() OVER(order BY name) as rn
+		from sys.databases where name not in ('master', 'tempdb', 'model', 'msdb')
+	)
+	select @name=name from cte
+	where rn = @i;
+    DECLARE @sql_cmd varchar(MAX) = N'
+	select 
+		TABLE_CATALOG as DatabaseName,
+		TABLE_SCHEMA as SchemaName,
+		TABLE_NAME as TableName,
+		COLUMN_NAME as ColumnName,
+		concat(
+			DATA_TYPE,''(''+ 
+				case when cast(CHARACTER_MAXIMUM_LENGTH as varchar) = ''-1''
+				then ''max''
+				else cast(CHARACTER_MAXIMUM_LENGTH as varchar) end
+			+'')''
+		) as DataType
+	from ';
+    SET @sql_cmd = CONCAT(@sql_cmd, @name, '.INFORMATION_SCHEMA.COLUMNS;');
+
+    INSERT INTO #temp
+    EXEC(@sql_cmd);
+	set @i = @i + 1;
+
+end
+SELECT * FROM #temp;
+
+
+
+
+
 -- ---
 
 -- Task 2:
@@ -44,6 +109,4 @@ EXEC(@sql_cmd)
 END;
 
 exec sp_select_all 'department', 2;
-
-
 
