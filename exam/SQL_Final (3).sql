@@ -42,8 +42,7 @@ INSERT INTO Grouped (Product, Quantity) VALUES
 ('Pencil',3),('Eraser',4),('Notebook',2);
 GO
 
-
-WITH DegroupedCTE AS (
+WITH CTE AS(
     SELECT
         Product,
         1 AS Counter,
@@ -54,21 +53,21 @@ WITH DegroupedCTE AS (
         Product,
         Counter + 1,
         MaxQuantity
-    FROM DegroupedCTE
+    FROM CTE
     WHERE Counter + 1 <= MaxQuantity
-    )
-SELECT 
-    Product, 
-    1 AS Quantity 
-FROM DegroupedCTE 
-ORDER BY Product
-
+)
+SELECT
+    Product,
+    1 AS Quantity
+FROM CTE
+ORDER BY Product;
 
 -- ------------------------2------------------------
 
 -- From following set of integers, write an SQL statement to determine the expected outputs
 
-
+DROP TABLE IF EXISTS Seats;
+GO
 CREATE TABLE Seats 
 ( 
 SeatNumber INTEGER 
@@ -79,34 +78,21 @@ INSERT INTO Seats VALUES
 (31),(32),(33),(34),(35),(52),(53),(54); 
 GO
 
-
 WITH Temp AS (
-    select 
-        g.value, 
-        IIF(s.SeatNumber IS NULL, 0, SeatNumber) AS Seat,
-        g.value-row_number() over(Partition BY IIF(s.SeatNumber IS NULL, 0, 1) ORDER BY g.value) RNK
-    from generate_series(1, 54, 1) g
-    LEFT join Seats s
+    SELECT
+        g.value,
+        IIF(s.SeatNumber IS NULL, 0, 1) AS Seat,
+        g.value - ROW_NUMBER() OVER(PARTITION BY IIF(s.SeatNumber IS NULL, 0, 1) ORDER BY g.value) AS RNK
+    FROM generate_series(1, 54, 1) AS g
+    LEFT JOIN Seats AS s
     ON s.SeatNumber = g.value
-    WHERE s.SeatNumber IS NULL)
-Select 
-    MIN(value) AS Gap_Start,
-    MAX(value) AS Gap_End
-from Temp
+    WHERE s.SeatNumber IS NULL
+)
+SELECT
+    MIN(value) AS GapEnd,
+    MAX(value) AS GapStart
+FROM Temp
 GROUP BY RNK;
-select COUNT(g.value) AS TotalMissingNumbers from generate_series(1, 54, 1) g
-LEFT join (select * from seats) s
-ON s.SeatNumber = g.value
-WHere s.SeatNumber IS NULL;
-SELECT Type, Count(*) AS Count
-from(select CASE
-        WHEN g.value%2=0 THEN 'EvenNumber' 
-        ELSE 'OddNumber' END AS Type
-    from generate_series(1, 54, 1) g
-    LEFT join (select * from seats) s
-    ON s.SeatNumber = g.value
-    Where s.SeatNumber IS NOT NULL) AS Tt
-GROUP BY Type
 
 -- Output 1:
 -- ---------------------
@@ -117,7 +103,16 @@ GROUP BY Type
 -- |     16    |	26	|
 -- |     36    |	51	|
 -- ---------------------
-
+SELECT COUNT(*) AS TotalMissingNumbers
+FROM(
+    SELECT
+        g.value,
+        s.SeatNumber
+    FROM generate_series(1, 54, 1) AS g
+    LEFT JOIN Seats AS s
+    ON s.SeatNumber = g.value
+    WHERE s.SeatNumber IS NULL    
+    ) AS t
 
 -- Output 2:
 -- -----------------------
@@ -125,8 +120,18 @@ GROUP BY Type
 -- -----------------------
 -- |		  38		  |
 -- -----------------------
-
-
+SELECT
+    Type,
+    COUNT(*) AS Count
+FROM(
+    SELECT
+        g.value,
+        IIF(g.value%2=0, 'Eeven Numbers', 'Odd Numbers') AS Type
+    FROM generate_series(1, 54, 1) AS g
+    INNER JOIN Seats AS s
+    ON s.SeatNumber = g.value
+) AS T
+GROUP BY Type;
 -- Output 3:
 -- ---------------------
 -- |Type		 |Count	|
@@ -135,15 +140,14 @@ GROUP BY Type
 -- |Even Numbers|	9	|
 -- ---------------------
 
-
-
 -- ------------------------3------------------------
 
 -- You work for a gaming company and need to rank players by their score into two categories. 
 -- Players that rank in the top half must be given a value of 1, and the remaining players must be given a 
 -- value of 2. 
 -- Write an SQL statement that meets these requirements. 
-
+DROP TABLE IF EXISTS PlayerScores;
+GO
 CREATE TABLE PlayerScores 
 ( 
 PlayerID VARCHAR(MAX), 
@@ -156,15 +160,16 @@ INSERT INTO PlayerScores VALUES
 (3003,6548),(4004,1054), 
 (5005,6832); 
 GO 
-
-select 
-    *,
-    CASE
-        WHEN Score > (SELECT AVG(Score) FROM PlayerScores) THEN 1
-    ELSE 0 END AS RNK
-from PlayerScores
-
-
+SELECT 
+    PlayerID,
+    Score,
+    IIF(Score > avg, 1, 2) AS RNK
+FROM(
+    SELECT
+        *,
+        AVG(Score) OVER() AS avg
+    FROM PlayerScores
+) AS t
 -- ------------------------4------------------------
 
 -- Write an SQL statement that returns the vendor from which each customer has placed the most orders
@@ -180,6 +185,18 @@ from PlayerScores
 -- |Ord645363	|	   2002		|		  5			|	Direct Parts|
 -- -----------------------------------------------------------------
 
+SELECT
+    CustomerID,
+    Vendor
+FROM(
+    SELECT
+        CustomerID,
+        Vendor,
+        DENSE_RANK() OVER(PARTITION BY CustomerID ORDER BY SUM(Count) DESC) AS TRNK
+    FROM Orders
+    GROUP BY CustomerID, Vendor
+) AS t
+WHERE TRNK = 1
 
 -- Here is the expected output
 
@@ -210,15 +227,6 @@ INSERT INTO Orders (OrderID, CustomerID, [Count], Vendor) VALUES
 (5,2002,16,'ACME'),
 (6,2002,5,'Direct Parts');
 GO
-SELECT CustomerID, Vendor
-FROM (
-    SELECT CustomerID, Vendor, SUM([Count]) AS TotalOrderCount,
-        DENSE_RANK() OVER (PARTITION BY CustomerID ORDER BY SUM([Count]) DESC) AS VendorRank
-    FROM Orders
-    GROUP BY CustomerID, Vendor
-) AS T
-WHERE VendorRank = 1
-
 -- ------------------------5------------------------
 
 -- Write an SQL statement that deletes the duplicate data.
@@ -229,15 +237,17 @@ IntegerValue INTEGER
 ); 
 GO 
 INSERT INTO SampleData VALUES 
-(1),(1),(2),(3),(3),(4); 
-GO 
+(1),(1),(2),(3),(3),(4),(1),(1),(2),(3),(3),(4),(5),(3),(5),(2),(6),(7); 
+GO
 
-WITH CTE AS(select 
-    IntegerValue,
-    ROW_NUMBER() OVER(PARTITION BY IntegerValue ORDER BY IntegerValue) AS RNK
-from SampleData)
-DELETE FROM CTE
-WHERE RNK > 1
+WITH CTE AS (
+    SELECT
+        IntegerValue,
+        ROW_NUMBER() OVER(PARTITION BY IntegerValue ORDER BY IntegerValue) AS rnk
+    FROM SampleData
+)
+DELETE FROM CTE WHERE rnk>1;
+SELECT * FROM SampleData;
 
 -- ------------------------6------------------------
 
@@ -258,6 +268,35 @@ WHERE RNK > 1
 -- |	  11	|				|	 Fail	|
 -- |	  12	|				|	 Fail	|
 -- -----------------------------------------
+WITH CTE AS(
+    SELECT
+        RowNumber,
+        TestCase
+    FROM Gaps
+    WHERE RowNumber=1
+    UNION ALL
+    SELECT
+        g.RowNumber,
+        IIF(g.TestCase IS NULL, c.TestCase, g.TestCase) AS TestCase
+    FROM Gaps AS g
+    INNER JOIN CTE AS c
+    ON g.RowNumber=c.RowNumber + 1
+)
+SELECT * 
+FROM CTE;
+
+SELECT
+    g1.RowNumber,
+    COALESCE(
+        g1.TestCase,
+        (SELECT TOP 1 g2.TestCase
+        FROM Gaps As g2
+        WHERE g2.RowNumber <= g1.RowNumber
+        AND g2.TestCase IS NOT NULL
+            ORDER BY g2.RowNumber DESC
+        )) AS TestCase
+FROM Gaps AS g1
+ORDER BY g1.RowNumber;
 
 
 -- Here is the expected output.
@@ -278,6 +317,8 @@ WHERE RNK > 1
 -- |	  12	|	 Charlie	|	 Fail	|
 -- -----------------------------------------
 
+
+
 DROP TABLE IF EXISTS Gaps;
 GO
 
@@ -293,18 +334,6 @@ INSERT INTO Gaps (RowNumber, TestCase) VALUES
 (5,'Bravo'),(6,NULL),(7,'Charlie'),(8,NULL),(9,NULL);
 GO
 
-WITH GroupedWorkflows AS (
-    SELECT 
-        RowNumber,
-        TestCase,
-        COUNT(TestCase) OVER(ORDER BY RowNumber) AS GroupID
-    FROM Gaps
-)
-SELECT 
-    RowNumber,
-    MAX(TestCase) OVER (PARTITION BY GroupID) AS Workflow
-FROM GroupedWorkflows
-ORDER BY RowNumber;
 -- ------------------------7------------------------
 
 -- You must provide a report of all distributors and their sales by region.  If a distributor did not have any 
@@ -351,8 +380,24 @@ select * from #RegionSales
 -- |South        |ACME           |   9	  |
 -- |East         |ACME           |   1	  |
 -- |West         |ACME           |   7	  |
--- ----------------------------------------
-
+-- ---------------------------------------- 
+SELECT
+    rt.Region,
+    rt.Distributor,
+    ISNULL(SUM(m.Sales), 0) AS Sales
+FROM (
+SELECT 
+    r.Region, 
+    t.Distributor
+FROM (SELECT DISTINCT(Region) FROM #RegionSales) AS r
+CROSS JOIN (SELECT DISTINCT(Distributor) FROM #RegionSales) AS t
+) AS rt
+LEFT JOIN #RegionSales AS m
+ON rt.Distributor=m.Distributor AND m.Region=rt.Region
+GROUP BY 
+    rt.Region, 
+    rt.Distributor
+ORDER BY rt.Distributor, rt.Region;
 
 
 -- Here is the Expected output.
@@ -362,10 +407,10 @@ select * from #RegionSales
 -- |North        |ACE            |   10  |
 -- |South        |ACE            |   67  |
 -- |East         |ACE            |   54  |
--- |West		 |ACE			  |   0   |
+-- |West		  |ACE			  |   0   |
 -- |North        |Direct Parts   |   8	  |
 -- |South        |Direct Parts   |   7	  |
--- |East		 |Direct Parts   |   0   |
+-- |East		  |Direct Parts   |   0   |
 -- |West         |Direct Parts   |   12  |
 -- |North        |ACME           |   65  |
 -- |South        |ACME           |   9	  |
@@ -373,47 +418,44 @@ select * from #RegionSales
 -- |West         |ACME           |   7	  |
 -- ----------------------------------------
 
-WITH Regions AS
-(
-    SELECT DISTINCT Region FROM #RegionSales
-),
-Distributors AS
-(
-    SELECT DISTINCT Distributor FROM #RegionSales
-),
-Crossed AS
-(
-    SELECT
-        r.Region,
-        d.Distributor
-    FROM Regions AS r
-    CROSS JOIN Distributors AS d
-)
-SELECT 
-    c.Region,
-    c.Distributor,
-    ISNULL(t.Sales, 0) AS Sales
-FROM Crossed AS c
-LEFT JOIN #RegionSales AS t
-ON c.Region = t.Region 
-AND c.Distributor = t.Distributor
+
+
 
 -- ------------------------8------------------------
 
 -- Write an SQL statement to determine which of the below numbers are prime numbers.(output should have 2 columns, 
 -- Number and IsPrime column that indicated if the number is prime or not)
 
+DROP TABLE IF EXISTS Primes;
+GO
+CREATE TABLE Primes 
+( 
+IntegerValue INTEGER 
+); 
+GO
+INSERT INTO Primes (IntegerValue) VALUES 
+(1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+GO
+SELECT * FROM Primes;
 
--- CREATE TABLE Primes 
--- ( 
--- IntegerValue INTEGER 
--- ); 
--- GO 
--- INSERT INTO Primes VALUES 
--- (1),(2),(3),(4),(5),(6),(7),(8),
---  (9),(10); 
--- GO;
-
+DECLARE @maxdivisor int =(SELECT FLOOR(SQRT(MAX(IntegerValue))) FROM Primes);
+WITH divisors AS (
+    SELECT 2 AS n
+    UNION ALL
+    SELECT n + 1
+    FROM divisors
+    WHERE n <= @maxdivisor
+)
+SELECT
+    IntegerValue,
+    CASE
+        WHEN IntegerValue < 2 THEN 'NotPrime'  
+        WHEN EXISTS (
+            SELECT 1 FROM divisors WHERE n <= FLOOR(SQRT(IntegerValue)) AND IntegerValue % n = 0 
+        ) THEN 'Not Prime'
+    ELSE 'Prime'
+    END AS PrimeStatus
+FROM Primes
 
 
 -- ------------------------9------------------------
@@ -501,7 +543,56 @@ AND c.Distributor = t.Distributor
 -- $10.  If a ticket has all the winning numbers, you win $100.    Calculate the total winnings for today�s 
 -- drawing.
 
-
+DROP TABLE IF EXISTS Tickets;
+DROP TABLE IF EXISTS WinningNumbers;
+GO
+CREATE TABLE WinningNumbers
+(
+    Number INT PRIMARY KEY
+);
+GO
+CREATE TABLE Tickets
+(
+    TicketID VARCHAR(50) NOT NULL,
+    Number   INT NOT NULL,
+    CONSTRAINT PK_Tickets PRIMARY KEY (TicketID, Number)
+);
+GO
+INSERT INTO WinningNumbers (Number) 
+VALUES 
+    (25),
+    (45),
+    (78);
+GO
+INSERT INTO Tickets (TicketID, Number) 
+VALUES 
+    ('A23423', 25),
+    ('A23423', 45),
+    ('A23423', 78),
+    ('B35643', 25),
+    ('B35643', 45),
+    ('B35643', 98),
+    ('C98787', 67),
+    ('C98787', 86),
+    ('C98787', 91);
+GO
+WITH CTE AS (
+    SELECT 
+        t.TicketID,
+        COUNT(n.Number) AS nums
+    FROM Tickets As t
+    INNER JOIN  WinningNumbers AS n
+    ON n.Number = t.Number
+    GROUP BY t.TicketID
+),
+Winnings AS (SELECT COUNT(*) AS cnt FROM WinningNumbers)
+SELECT SUM(CASE 
+            WHEN nums = Winnings.cnt THEN 100
+            WHEN nums > 0 THEN 10
+            ELSE 0 
+        END) AS TotalWinnings 
+FROM CTE
+CROSS JOIN Winnings;
 
 -- Winning Numbers 
 -- ---------
@@ -535,7 +626,8 @@ AND c.Distributor = t.Distributor
 
 
 -- ------------------------11------------------------
--- From the following table of transactions between two users, write a query to return the change in net worth for each user, ordered by decreasing net change.
+-- From the following table of transactions between two users, write a query to return the change in net worth for each user, 
+-- ordered by decreasing net change.
 
 -- Transactions
 -- -------------------------------------------------
@@ -1741,11 +1833,16 @@ AND c.Distributor = t.Distributor
 -- )
 
 -- Insert into Device (Device_id,Locations) values
--- (12,' ),
+-- (12,'Bangalore'), 
+-- (12,'Bangalore'),
+-- (12,'Bangalore'), 
+-- (12,'Bangalore'),
+-- (12,'Hosur'),
+-- (12,'Hosur'),
 -- (13,'Hyderabad'), 
 -- (13,'Hyderabad'), 
 -- (13, 'Secunderabad'), 
--- (13, 'Secunderabad'),
+-- (13, 'Secunderabad'), 
 -- (13, 'Secunderabad')
 
 
