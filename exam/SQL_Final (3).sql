@@ -483,7 +483,58 @@ FROM Primes
 -- |	   B	  |	   Break	| 10/1/2021 11:00 |  10/1/2021 11:15 |
 -- ------------------------------------------------------------------
 
-
+WITH Actbonds AS(
+    SELECT
+        s.ScheduleID,
+        a.ActivityName AS Activity,
+        a.StartTime AS StartTime,
+        a.EndTime AS EndTime,
+        s.StartTime AS ShiftStart,
+        s.EndTime AS ShiftEnd,
+        LAG(a.EndTime) OVER(PARTITION BY s.ScheduleID ORDER BY a.StartTime) AS PreviousActEnd,
+        LEAD(a.StartTime) OVER(PARTITION BY  s.ScheduleID ORDER BY a.StartTime) AS NextActStart,
+        ROW_NUMBER() OVER(PARTITION BY  s.ScheduleID ORDER BY a.StartTime ASC) AS RNAsc,
+        ROW_NUMBER() OVER(PARTITION BY  s.ScheduleID ORDER BY a.StartTime DESC) AS RNDesc
+    FROM #Schedule AS s
+    LEFT JOIN #Activity AS a
+    ON s.ScheduleID = a.ScheduleID
+)
+SELECT
+    ScheduleID,
+    Activity,
+    StartTime,
+    EndTime
+FROM Actbonds
+WHERE Activity IS NOT NULL
+UNION ALL
+SELECT
+    ScheduleID,
+    'Work',
+    ShiftStart,
+    EndTime
+FROM Actbonds
+WHERE RNAsc = 1 AND ShiftStart < StartTime
+UNION ALL
+SELECT
+    ScheduleID,
+    'Work',
+    EndTime,
+    NextActStart
+FROM Actbonds
+WHERE NextActStart IS NOT NULL AND EndTime < NextActStart
+UNION ALL
+SELECT
+    ScheduleID,
+    'Work',
+    EndTime,
+    ShiftEnd
+FROM Actbonds
+WHERE RNDesc = 1 AND ShiftEnd > EndTime
+UNION ALL
+SELECT ScheduleID, 'Work', ShiftStart, ShiftEnd
+FROM Actbonds
+WHERE Activity IS NULL
+ORDER BY ScheduleID, StartTime;
 
 -- Here is the Expected Output.
 -- ------------------------------------------------------------------
@@ -501,39 +552,39 @@ FROM Primes
 -- ------------------------------------------------------------------
 
 
--- DROP TABLE IF EXISTS #Schedule;
--- DROP TABLE IF EXISTS #Activity;
--- GO
+DROP TABLE IF EXISTS #Schedule;
+DROP TABLE IF EXISTS #Activity;
+GO
 
--- CREATE TABLE #Schedule
--- (
--- ScheduleID  CHAR(1) PRIMARY KEY,
--- StartTime   DATETIME NOT NULL,
--- EndTime     DATETIME NOT NULL
--- );
--- GO
+CREATE TABLE #Schedule
+(
+ScheduleID  CHAR(1) PRIMARY KEY,
+StartTime   DATETIME NOT NULL,
+EndTime     DATETIME NOT NULL
+);
+GO
 
--- CREATE TABLE #Activity
--- (
--- ScheduleID    CHAR(1) REFERENCES #Schedule (ScheduleID),
--- ActivityName  VARCHAR(100),
--- StartTime     DATETIME,
--- EndTime       DATETIME,
--- PRIMARY KEY (ScheduleID, ActivityName, StartTime, EndTime)
--- );
--- GO
+CREATE TABLE #Activity
+(
+ScheduleID    CHAR(1) REFERENCES #Schedule (ScheduleID),
+ActivityName  VARCHAR(100),
+StartTime     DATETIME,
+EndTime       DATETIME,
+PRIMARY KEY (ScheduleID, ActivityName, StartTime, EndTime)
+);
+GO
 
--- INSERT INTO #Schedule (ScheduleID, StartTime, EndTime) VALUES
--- ('A',CAST('2021-10-01 10:00:00' AS DATETIME),CAST('2021-10-01 15:00:00' AS DATETIME)),
--- ('B',CAST('2021-10-01 10:15:00' AS DATETIME),CAST('2021-10-01 12:15:00' AS DATETIME));
--- GO
+INSERT INTO #Schedule (ScheduleID, StartTime, EndTime) VALUES
+('A',CAST('2021-10-01 10:00:00' AS DATETIME),CAST('2021-10-01 15:00:00' AS DATETIME)),
+('B',CAST('2021-10-01 10:15:00' AS DATETIME),CAST('2021-10-01 12:15:00' AS DATETIME));
+GO
 
--- INSERT INTO #Activity (ScheduleID, ActivityName, StartTime, EndTime) VALUES
--- ('A','Meeting',CAST('2021-10-01 10:00:00' AS DATETIME),CAST('2021-10-01 10:30:00' AS DATETIME)),
--- ('A','Break',CAST('2021-10-01 12:00:00' AS DATETIME),CAST('2021-10-01 12:30:00' AS DATETIME)),
--- ('A','Meeting',CAST('2021-10-01 13:00:00' AS DATETIME),CAST('2021-10-01 13:30:00' AS DATETIME)),
--- ('B','Break',CAST('2021-10-01 11:00:00'AS DATETIME),CAST('2021-10-01 11:15:00' AS DATETIME));
--- GO
+INSERT INTO #Activity (ScheduleID, ActivityName, StartTime, EndTime) VALUES
+('A','Meeting',CAST('2021-10-01 10:00:00' AS DATETIME),CAST('2021-10-01 10:30:00' AS DATETIME)),
+('A','Break',CAST('2021-10-01 12:00:00' AS DATETIME),CAST('2021-10-01 12:30:00' AS DATETIME)),
+('A','Meeting',CAST('2021-10-01 13:00:00' AS DATETIME),CAST('2021-10-01 13:30:00' AS DATETIME)),
+('B','Break',CAST('2021-10-01 11:00:00'AS DATETIME),CAST('2021-10-01 11:15:00' AS DATETIME));
+GO
 
 
 -- ------------------------10------------------------
@@ -641,7 +692,22 @@ CROSS JOIN Winnings;
 -- |   3    |    2     |  15    |     2-15-20      |  
 -- |   1    |    4     |  5     |     2-16-20      |
 -- -------------------------------------------------
-
+WITH temp AS(
+    SELECT
+    receiver,
+    amount
+FROM transactions
+UNION ALL
+SELECT
+    sender,
+    -amount
+FROM transactions)
+SELECT
+    receiver AS 'User',
+    SUM(amount) AS NetChange
+FROM temp
+GROUP BY receiver
+ORDER BY Netchange Desc;
 -- Expected Output
 -- ---------------------
 -- | User | Net Change |  
@@ -653,28 +719,52 @@ CROSS JOIN Winnings;
 -- |  2   |    -20     |
 -- ---------------------
 
--- DROP TABLE IF EXISTS transactions
+DROP TABLE IF EXISTS transactions
 
--- CREATE TABLE transactions (  
---     sender INT,  
---     receiver INT,  
---     amount INT,  
---     transaction_date DATE  
--- );
+CREATE TABLE transactions (  
+    sender INT,  
+    receiver INT,  
+    amount INT,  
+    transaction_date DATE  
+);
 
--- INSERT INTO transactions (sender, receiver, amount, transaction_date)   
--- VALUES   
--- (5, 2, 10, CAST('2020-02-12' AS DATE)),  
--- (1, 3, 15, CAST('2020-02-13' AS DATE)),   
--- (2, 1, 20, CAST('2020-02-13' AS DATE)),   
--- (2, 3, 25, CAST('2020-02-14' AS DATE)),   
--- (3, 1, 20, CAST('2020-02-15' AS DATE)),   
--- (3, 2, 15, CAST('2020-02-15' AS DATE)),   
--- (1, 4, 5, CAST('2020-02-16' AS DATE));
+INSERT INTO transactions (sender, receiver, amount, transaction_date)   
+VALUES   
+(5, 2, 10, CAST('2020-02-12' AS DATE)),  
+(1, 3, 15, CAST('2020-02-13' AS DATE)),   
+(2, 1, 20, CAST('2020-02-13' AS DATE)),   
+(2, 3, 25, CAST('2020-02-14' AS DATE)),   
+(3, 1, 20, CAST('2020-02-15' AS DATE)),   
+(3, 2, 15, CAST('2020-02-15' AS DATE)),   
+(1, 4, 5, CAST('2020-02-16' AS DATE));
 
 -- ------------------------12------------------------
--- From the following table containing a list of dates and items ordered, write a query to return the most frequent item ordered on each date. Return multiple items in the case of a tie.
-
+-- From the following table containing a list of dates and items ordered, write a query to return the most frequent item ordered on each date.
+-- Return multiple items in the case of a tie.
+WITH ItemCounts AS (
+    -- Step 1: Count occurrences of each item per date
+    SELECT
+        date,
+        item,
+        COUNT(*) AS ItemCount
+    FROM Fruits
+    GROUP BY date, item
+),
+RankedItems AS (
+    -- Step 2: Rank items per date, assigning rank 1 to top count(s)
+    SELECT
+        date,
+        item,
+        DENSE_RANK() OVER (PARTITION BY date ORDER BY ItemCount DESC) AS rnk
+    FROM ItemCounts
+)
+-- Step 3: Filter for all rank 1 items (handles ties naturally)
+SELECT
+    date,
+    item
+FROM RankedItems
+WHERE rnk = 1
+ORDER BY date, item;
 
 -- Items
 -- -----------------------
@@ -690,7 +780,6 @@ CROSS JOIN Winnings;
 -- | 1-2-20   | orange   |
 -- -----------------------
 
-
 -- Expected Output
 -- -----------------------
 -- |   date   |   item   |  
@@ -700,26 +789,27 @@ CROSS JOIN Winnings;
 -- | 1-2-20   | pear     |
 -- -----------------------
 
--- CREATE TABLE Fruits (  
---     date DATE,  
---     item VARCHAR(50)  
--- );
+CREATE TABLE Fruits (  
+    date DATE,  
+    item VARCHAR(50)  
+);
 
 
--- INSERT INTO Fruits (date, item) VALUES  
--- ('2020-01-01', 'apple'),  
--- ('2020-01-01', 'apple'),  
--- ('2020-01-01', 'pear'),  
--- ('2020-01-01', 'pear'),  
--- ('2020-02-01', 'pear'),  
--- ('2020-02-01', 'pear'),  
--- ('2020-02-01', 'pear'),  
--- ('2020-02-01', 'orange');
+INSERT INTO Fruits (date, item) VALUES  
+('2020-01-01', 'apple'),  
+('2020-01-01', 'apple'),  
+('2020-01-01', 'pear'),  
+('2020-01-01', 'pear'),  
+('2020-02-01', 'pear'),  
+('2020-02-01', 'pear'),  
+('2020-02-01', 'pear'),  
+('2020-02-01', 'orange');
 
 
 -- ------------------------13------------------------
 
--- From the following table of user actions, write a query to return for each user the time elapsed between the last action and the second-to-last action, in ascending order by user ID.
+-- From the following table of user actions, write a query to return for each user the time elapsed between 
+-- the last action and the second-to-last action, in ascending order by user ID.
 
 -- Users_actions
 -- -----------------------------------
@@ -735,8 +825,6 @@ CROSS JOIN Winnings;
 -- |   1     | Publish |  2-19-20    |
 -- -----------------------------------
 
-
-
 -- Expected Output
 -- --------------------------
 -- | user_id | days_elapsed |  
@@ -746,28 +834,44 @@ CROSS JOIN Winnings;
 -- |   3     |      0       |  
 -- |   4     |     NULL     |
 -- --------------------------
+WITH temp AS(
+    SELECT 
+        user_id,
+        action,
+        action_date,
+        ROW_NUMBER() OVER(PARTITION BY user_id ORDER BY action_date DESC) AS rnk,
+        LEAD(action_date) OVER(PARTITION BY user_id ORDER BY action_date DESC) AS lead
+    FROM users_actions)
+SELECT
+    user_id,
+    DATEDIFF(day, lead, action_date)
+FROM temp
+WHERE rnk = 1
 
--- CREATE TABLE users_actions (  
---     user_id INT,  
---     action VARCHAR(10),  
---     action_date DATE  
--- );
 
--- INSERT INTO users_actions (user_id, action, action_date) VALUES  
--- (1, 'Start', '2020-02-12'),  
--- (1, 'Cancel', '2020-02-13'),  
--- (2, 'Start', '2020-02-11'),  
--- (2, 'Publish', '2020-02-14'),  
--- (3, 'Start', '2020-02-15'),  
--- (3, 'Cancel', '2020-02-15'),  
--- (4, 'Start', '2020-02-18'),  
--- (1, 'Publish', '2020-02-19');
+
+CREATE TABLE users_actions (  
+    user_id INT,  
+    action VARCHAR(10),  
+    action_date DATE  
+);
+
+INSERT INTO users_actions (user_id, action, action_date) VALUES  
+(1, 'Start', '2020-02-12'),  
+(1, 'Cancel', '2020-02-13'),  
+(2, 'Start', '2020-02-11'),  
+(2, 'Publish', '2020-02-14'),  
+(3, 'Start', '2020-02-15'),  
+(3, 'Cancel', '2020-02-15'),  
+(4, 'Start', '2020-02-18'),  
+(1, 'Publish', '2020-02-19');
 
 
 
 -- ------------------------14------------------------
--- A company defines its super users as those who have made at least two transactions. From the following table, write a query to return, for each user, the date when they become a super user, ordered by oldest super users first. Users who are not super users should also be present in the table.
-
+-- A company defines its super users as those who have made at least two transactions. From the following table, write a query to return, 
+-- for each user, the date when they become a super user, ordered by oldest super users first. Users who are not super users should also 
+-- be present in the table.
 
 -- Users
 -- -------------------------------------------
@@ -782,8 +886,26 @@ CROSS JOIN Winnings;
 -- |    4    |     101    |      2-16-20     |  
 -- |    3    |     105    |      2-15-20     |
 -- -------------------------------------------
-
-
+WITH temp AS(
+    SELECT
+        user_id,
+        transaction_date,
+        ROW_NUMBER() OVER(PARTITION BY user_id ORDER BY transaction_date) rnk
+    FROM users),
+usersl AS(
+    SELECT
+        DiSTINCT(user_id)
+    FROM users
+)
+SELECT
+    u.user_id,
+    t.transaction_date
+FROM usersl AS u
+LEFT JOIN temp AS t
+ON t.rnk=2 AND u.user_id = t.user_id
+ORDER BY 
+    CASE WHEN t.transaction_date IS NULL THEN 1 ELSE 0 END ASC,
+    t.transaction_date ASC;
 -- Expected Output
 -- ----------------------------
 -- | user_id | superuser_date |  
@@ -794,25 +916,26 @@ CROSS JOIN Winnings;
 -- |    4    |       NULL     |
 -- ----------------------------
 
--- CREATE TABLE users (  
---     user_id INT,  
---     product_id INT,  
---     transaction_date DATE  
--- );
+CREATE TABLE users (  
+    user_id INT,  
+    product_id INT,  
+    transaction_date DATE  
+);
 
--- INSERT INTO users (user_id, product_id, transaction_date) VALUES  
--- (1, 101, '2020-02-12'),  
--- (2, 105, '2020-02-13'),  
--- (1, 111, '2020-02-14'),  
--- (3, 121, '2020-02-15'),  
--- (1, 101, '2020-02-16'),  
--- (2, 105, '2020-02-17'),  
--- (4, 101, '2020-02-16'),  
--- (3, 105, '2020-02-15');
+INSERT INTO users (user_id, product_id, transaction_date) VALUES  
+(1, 101, '2020-02-12'),  
+(2, 105, '2020-02-13'),  
+(1, 111, '2020-02-14'),  
+(3, 121, '2020-02-15'),  
+(1, 101, '2020-02-16'),  
+(2, 105, '2020-02-17'),  
+(4, 101, '2020-02-16'),  
+(3, 105, '2020-02-15');
 
 -- ------------------------15------------------------
 
--- Using the following two tables, write a query to return page recommendations to a social media user based on the pages that their friends have liked, but that they have not yet marked as liked. Order the result by ascending user ID.
+-- Using the following two tables, write a query to return page recommendations to a social media user based on the pages 
+-- that their friends have liked, but that they have not yet marked as liked. Order the result by ascending user ID.
 
 -- Friends
 -- --------------------
@@ -855,47 +978,49 @@ CROSS JOIN Winnings;
 -- |    4    |        C         |
 -- ------------------------------
 
+SELECT DISTINCT
+    f.user_id,
+    l.page_likes
+FROM friends AS f
+JOIN likes AS l
+ON l.user_id = f.friend
+WHERE NOT EXISTS(
+    SELECT 1
+    FROM likes AS ll
+    WHERE ll.user_id = f.user_id
+    AND ll.page_likes = l.page_likes
+)
+ORDER BY f.user_id
 
--- CREATE TABLE friends (  
---     user_id INT,  
---     friend INT,  
---     PRIMARY KEY (user_id, friend)  
--- );  
-
--- CREATE TABLE likes (  
---     user_id INT,  
---     page_likes VARCHAR(255),  
---     PRIMARY KEY (user_id, page_likes)  
--- );
 
 
+-- Inserting data into the friends table  
+INSERT INTO friends (user_id, friend) VALUES  
+(1, 2),  
+(1, 3),  
+(1, 4),  
+(2, 1),  
+(3, 1),  
+(3, 4),  
+(4, 1),  
+(4, 3);  
 
--- -- Inserting data into the friends table  
--- INSERT INTO friends (user_id, friend) VALUES  
--- (1, 2),  
--- (1, 3),  
--- (1, 4),  
--- (2, 1),  
--- (3, 1),  
--- (3, 4),  
--- (4, 1),  
--- (4, 3);  
-
--- -- Inserting data into the likes table  
--- INSERT INTO likes (user_id, page_likes) VALUES  
--- (1, 'A'),  
--- (1, 'B'),  
--- (1, 'C'),  
--- (2, 'A'),  
--- (3, 'B'),  
--- (3, 'C'),  
--- (4, 'B');
+-- Inserting data into the likes table  
+INSERT INTO likes (user_id, page_likes) VALUES  
+(1, 'A'),  
+(1, 'B'),  
+(1, 'C'),  
+(2, 'A'),  
+(3, 'B'),  
+(3, 'C'),  
+(4, 'B');
 
 
 -- ------------------------16------------------------
 
--- Given the following table, return a list of users and their corresponding friend count. Order the result by descending friend count, and in the case of a tie, by ascending user ID. Assume that only unique friendships are displayed.
-
+-- Given the following table, return a list of users and their corresponding friend count. 
+-- Order the result by descending friend count, and in the case of a tie, by ascending user ID. 
+-- Assume that only unique friendships are displayed.
 
 -- Friends
 -- -----------------
@@ -907,7 +1032,6 @@ CROSS JOIN Winnings;
 -- | 2    |   3    |
 -- -----------------
 
-
 -- Expected Output
 -- ------------------
 -- |user_id | count |
@@ -917,9 +1041,37 @@ CROSS JOIN Winnings;
 -- | 3      | 2     |
 -- | 4      | 1     |
 -- ------------------
-
-
-
+DROP TABLE IF EXISTS Friends;
+GO
+CREATE TABLE Friends
+(
+    user1 INT NOT NULL,
+    user2 INT NOT NULL,
+    CONSTRAINT PK_Friends PRIMARY KEY (user1, user2)
+);
+GO
+INSERT INTO Friends (user1, user2)
+VALUES
+    (1, 2),
+    (1, 3),
+    (1, 4),
+    (2, 3);
+GO
+WITH temp AS(
+    SELECT
+        user1
+    FROM Friends
+    UNION ALL
+    SELECT
+        user2
+    FROM Friends
+)
+SELECT
+    user1 AS User_id,
+    COUNT(*) AS count
+FROM temp
+GROUP BY user1
+ORDER BY count DESC, user1
 
 
 -- ------------------------17------------------------
@@ -953,6 +1105,14 @@ CROSS JOIN Winnings;
 -- | 3          | 1         | 3           | 2014-04-05    |
 -- | 4          | 2         | 4           | 2013-04-03    |
 -- --------------------------------------------------------
+SELECT
+    ROUNd(SUM(a.attendance) * 1.0/COUNT(a.attendance), 2) AS birthday_attendace
+FROM Students AS s
+JOIN Attendance AS a
+    ON a.student_id = s.student_id 
+    AND MONTH(s.date_of_birth) = MONTH(a.school_date)
+    AND DAY(s.date_of_birth) = DAY(a.school_date)
+
 
 -- Expected Output
 -- ---------------------
@@ -961,46 +1121,51 @@ CROSS JOIN Winnings;
 -- |		0.67		|
 -- ---------------------
 
-
--- CREATE TABLE Attendance (  
---     student_id INT,  
---     school_date DATE,  
---     attendance INT,  
---     PRIMARY KEY (student_id, school_date)  
--- );  
-
-
--- CREATE TABLE Students (  
---     student_id INT PRIMARY KEY,  
---     school_id INT,  
---     grade_level INT,  
---     date_of_birth DATE  
--- );
-
--- INSERT INTO Attendance (student_id, school_date, attendance) VALUES  
--- (1, '2020-04-03', 0),  
--- (2, '2020-04-03', 1),  
--- (3, '2020-04-03', 1),  
--- (1, '2020-04-04', 1),  
--- (2, '2020-04-04', 1),  
--- (3, '2020-04-04', 1),  
--- (1, '2020-04-05', 0),  
--- (2, '2020-04-05', 1),  
--- (3, '2020-04-05', 1),  
--- (4, '2020-04-05', 1);
+DROP TABLE IF EXISTS Attendance;
+GO
+DROP TABLE IF EXISTS Students;
+GO
+CREATE TABLE Attendance (  
+    student_id INT,  
+    school_date DATE,  
+    attendance INT,  
+    PRIMARY KEY (student_id, school_date)  
+);  
 
 
--- INSERT INTO Students (student_id, school_id, grade_level, date_of_birth) VALUES  
--- (1, 2, 5, '2012-04-03'),  
--- (2, 1, 4, '2013-04-04'),  
--- (3, 1, 3, '2014-04-05'),  
--- (4, 2, 4, '2013-04-03');
+CREATE TABLE Students (  
+    student_id INT PRIMARY KEY,  
+    school_id INT,  
+    grade_level INT,  
+    date_of_birth DATE  
+);
+
+INSERT INTO Attendance (student_id, school_date, attendance) VALUES  
+(1, '2020-04-03', 0),  
+(2, '2020-04-03', 1),  
+(3, '2020-04-03', 1),  
+(1, '2020-04-04', 1),  
+(2, '2020-04-04', 1),  
+(3, '2020-04-04', 1),  
+(1, '2020-04-05', 0),  
+(2, '2020-04-05', 1),  
+(3, '2020-04-05', 1),  
+(4, '2020-04-05', 1);
+
+
+INSERT INTO Students (student_id, school_id, grade_level, date_of_birth) VALUES  
+(1, 2, 5, '2012-04-03'),  
+(2, 1, 4, '2013-04-04'),  
+(3, 1, 3, '2014-04-05'),  
+(4, 2, 4, '2013-04-03');
 
 
 
 -- ------------------------18------------------------
 
--- Given the following two tables, write a query to return the hacker ID, name, and total score (the sum of maximum scores for each challenge completed) ordered by descending score, and by ascending hacker ID in the case of score tie. Do not display entries for hackers with a score of zero.
+-- Given the following two tables, write a query to return the hacker ID, name, and total score 
+-- (the sum of maximum scores for each challenge completed) ordered by descending score, and by ascending hacker 
+-- ID in the case of score tie. Do not display entries for hackers with a score of zero.
 
 -- Hackers
 -- ---------------------
@@ -1011,7 +1176,6 @@ CROSS JOIN Winnings;
 -- | 3         | Joe   |  
 -- | 4         | Jim   |
 -- ---------------------
-
 
 -- Submissions
 -- ----------------------------------------------------
@@ -1070,7 +1234,9 @@ CROSS JOIN Winnings;
 --     (109, 4, 1, 0);
 -- ------------------------19------------------------
 
--- Write a query to rank scores in the following table without using a window function. If there is a tie between two scores, both should have the same rank. After a tie, the following rank should be the next consecutive integer value.
+-- Write a query to rank scores in the following table without using a window function. 
+-- If there is a tie between two scores, both should have the same rank. 
+-- After a tie, the following rank should be the next consecutive integer value.
 
 
 -- Scores
@@ -1113,7 +1279,10 @@ CROSS JOIN Winnings;
 
 -- ------------------------20------------------------
 
--- Write a query to return the scores of each team in the teams table after all matches displayed in the matches table. Points are awarded as follows: zero points for a loss, one point for a tie, and three points for a win. The result should include team name and points, and be ordered by decreasing points. In case of a tie, order by alphabetized team name.
+-- Write a query to return the scores of each team in the teams table after all matches displayed in the matches table. 
+-- Points are awarded as follows: zero points for a loss, one point for a tie, and three points for a win. 
+-- The result should include team name and points, and be ordered by decreasing points. In case of a tie, 
+-- rder by alphabetized team name.
 
 
 -- Teams
@@ -1186,7 +1355,9 @@ CROSS JOIN Winnings;
 
 -- ------------------------21------------------------
 
--- The attendance table logs the number of people counted in a crowd each day an event is held. Write a query to return a table showing the date and visitor count of high-attendance periods, defined as three consecutive entries (not necessarily consecutive dates) with more than 100 visitors.
+-- The attendance table logs the number of people counted in a crowd each day an event is held. 
+-- Write a query to return a table showing the date and visitor count of high-attendance periods, 
+-- defined as three consecutive entries (not necessarily consecutive dates) with more than 100 visitors.
 
 
 -- Attendance  
