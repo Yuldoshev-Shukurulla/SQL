@@ -1191,6 +1191,25 @@ INSERT INTO Students (student_id, school_id, grade_level, date_of_birth) VALUES
 -- | 108           | 3         | 2            | 15    |
 -- | 109           | 4         | 1            | 0     |
 -- ----------------------------------------------------
+WITH CTE AS (SELECT
+    submission_id,
+    hacker_id,
+    challenge_id,
+    score,
+    ROW_NUMBER() OVER(PARTITION BY hacker_id, challenge_id ORDER BY score DESC) AS rnm
+FROM Submissions
+WHERE score > 0)
+SELECT 
+    c.hacker_id,
+    h.name,
+    SUM(c.score) AS Total_Score
+FROM CTE AS c
+LEFT JOIN Hackers AS h
+ON h.hacker_id = c.hacker_id
+WHERE c.rnm = 1
+GROUP BY c.hacker_id, h.name
+ORDER BY Total_Score DESC, c.hacker_id ASC
+
 
 -- Expected output
 -- ---------------------------------
@@ -1202,42 +1221,41 @@ INSERT INTO Students (student_id, school_id, grade_level, date_of_birth) VALUES
 -- ---------------------------------
 
 
--- CREATE TABLE Hackers (  
---     hacker_id INT PRIMARY KEY,  
---     name NVARCHAR(100)  
--- );  
+CREATE TABLE Hackers (  
+    hacker_id INT PRIMARY KEY,  
+    name NVARCHAR(100)  
+);  
 
--- CREATE TABLE Submissions (  
---     submission_id INT PRIMARY KEY,  
---     hacker_id INT,  
---     challenge_id INT,  
---     score INT,  
---     FOREIGN KEY (hacker_id) REFERENCES Hackers(hacker_id)  
--- );
+CREATE TABLE Submissions (  
+    submission_id INT PRIMARY KEY,  
+    hacker_id INT,  
+    challenge_id INT,  
+    score INT,  
+    FOREIGN KEY (hacker_id) REFERENCES Hackers(hacker_id)  
+);
 
 
--- INSERT INTO Hackers (hacker_id, name) VALUES  
---     (1, 'John'),  
---     (2, 'Jane'),  
---     (3, 'Joe'),  
---     (4, 'Jim');  
+INSERT INTO Hackers (hacker_id, name) VALUES  
+    (1, 'John'),  
+    (2, 'Jane'),  
+    (3, 'Joe'),  
+    (4, 'Jim');  
 
--- INSERT INTO Submissions (submission_id, hacker_id, challenge_id, score) VALUES  
---     (101, 1, 1, 10),  
---     (102, 1, 1, 12),  
---     (103, 2, 1, 11),  
---     (104, 2, 1, 9),  
---     (105, 2, 2, 13),  
---     (106, 3, 1, 9),  
---     (107, 3, 2, 12),  
---     (108, 3, 2, 15),  
---     (109, 4, 1, 0);
+INSERT INTO Submissions (submission_id, hacker_id, challenge_id, score) VALUES  
+    (101, 1, 1, 10),  
+    (102, 1, 1, 12),  
+    (103, 2, 1, 11),  
+    (104, 2, 1, 9),  
+    (105, 2, 2, 13),  
+    (106, 3, 1, 9),  
+    (107, 3, 2, 12),  
+    (108, 3, 2, 15),  
+    (109, 4, 1, 0);
 -- ------------------------19------------------------
 
 -- Write a query to rank scores in the following table without using a window function. 
 -- If there is a tie between two scores, both should have the same rank. 
 -- After a tie, the following rank should be the next consecutive integer value.
-
 
 -- Scores
 -- ---------------
@@ -1251,7 +1269,6 @@ INSERT INTO Students (student_id, school_id, grade_level, date_of_birth) VALUES
 -- |  6  | 3.65  |
 -- ---------------
 
-
 -- Expected Output.
 -- -----------------------
 -- | score  | score_rank | 
@@ -1263,19 +1280,17 @@ INSERT INTO Students (student_id, school_id, grade_level, date_of_birth) VALUES
 -- |  3.65  |     3  	  |
 -- |  3.50  |     4	  |
 -- -----------------------
--- DROP TABLE IF EXISTS ScoreS
+DROP TABLE IF EXISTS ScoreS
 
--- CREATE TABLE Scores(ID INT, Score FLOAT)
+CREATE TABLE Scores(ID INT, Score FLOAT)
 
--- INSERT INTO  scores (id, score) VALUES
--- (1, 3.50),
--- (2, 3.65),
--- (3, 4.00),
--- (4, 3.85),
--- (5, 4.00),
--- (6, 3.65)
-
-
+INSERT INTO  scores (id, score) VALUES
+(1, 3.50),
+(2, 3.65),
+(3, 4.00),
+(4, 3.85),
+(5, 4.00),
+(6, 3.65)
 
 -- ------------------------20------------------------
 
