@@ -1280,18 +1280,27 @@ INSERT INTO Submissions (submission_id, hacker_id, challenge_id, score) VALUES
 -- |  3.65  |     3  	  |
 -- |  3.50  |     4	  |
 -- -----------------------
-DROP TABLE IF EXISTS ScoreS
+DROP TABLE IF EXISTS Scores
 
-CREATE TABLE Scores(ID INT, Score FLOAT)
+CREATE TABLE Scores(ID INT, score FLOAT)
 
-INSERT INTO  scores (id, score) VALUES
+INSERT INTO  Scores (id, score) VALUES
 (1, 3.50),
 (2, 3.65),
 (3, 4.00),
 (4, 3.85),
 (5, 4.00),
-(6, 3.65)
+(6, 3.65);
 
+
+SELECT
+    s1.score,
+    (SELECT
+        COUNT(DISTINCT s2.score)
+    FROM Scores AS s2
+    WHERE s2.score >= s1.score) AS score_rank
+FROM Scores AS s1
+ORDER BY s1.score DESC;
 -- ------------------------20------------------------
 
 -- Write a query to return the scores of each team in the teams table after all matches displayed in the matches table. 
